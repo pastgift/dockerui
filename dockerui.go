@@ -7,96 +7,40 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"os"
-	"strings"
 
-    "math/rand"
-    "time"
-    "strconv"
+//Deleted by pastgift
+//	"net/url"
+//	"strings"
+
     "fmt"
-    "crypto/md5"
+    "authui"
 )
 
 var (
 	endpoint = flag.String("e", "/var/run/docker.sock", "Dockerd endpoint")
 	addr     = flag.String("p", ":9000", "Address and port to serve dockerui")
 	assets   = flag.String("a", ".", "Path to the assets")
-
-    username = ""
-    password = ""
-    token    = ""
 )
-
-func GetMD5(s string) string {
-    data := []byte(s)
-    return md5.Sum(data)
-}
-
-func CreateRandomString() string {
-    rand.Seed(time.Now().UnixNano())
-    randInt := rand.Int63()
-    randStr := strconv.FormatInt(randInt, 36)
-
-    return randStr
-}
-
-func AuthenticateUser(r *http.Request) bool {
-    cookie, err := r.Cookie("token")
-    if err != nil || cookie.Value == "" || cookie.Value != token {
-        fmt.Println("User not login")
-        return false
-    }
-    return true
-}
-
-type DoLoginHandler struct {
-}
-
-func (f *DoLoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("Inputed UserName:", r.PostFormValue("username"))
-    fmt.Println("Inputed Password:", r.PostFormValue("password"))
-    if r.Method != "POST" || r.PostFormValue("username") != username || GetMD5(r.PostFormValue("password")) != password {
-        http.Redirect(w, r, "/login.html", http.StatusFound)
-    }
-
-    token = CreateRandomString()
-
-    cookie := http.Cookie{
-        Name:"token",
-        Value:token,
-    }
-    http.SetCookie(w, &cookie)
-
-    http.Redirect(w, r, "/", http.StatusFound)
-}
-
-type AuthenticatedFileServer struct {
-    BaseFileServerHandler http.Handler
-}
-
-func NewAuthenticatedFileServer(root http.FileSystem) *AuthenticatedFileServer {
-    afs := AuthenticatedFileServer{}
-    afs.BaseFileServerHandler = http.FileServer(root)
-
-    return &afs
-}
-
-func (f *AuthenticatedFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    fmt.Println("Request:", r.URL.Path)
-
-    if strings.HasPrefix(r.URL.Path, "/css/") || AuthenticateUser(r) == true {
-        f.BaseFileServerHandler.ServeHTTP(w, r)
-    } else {
-        http.Redirect(w, r, "/login.html", http.StatusFound)
-    }
-}
 
 type UnixHandler struct {
 	path string
 }
 
+//Modified by pastgift: Add user authentication
 func (h *UnixHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    // Avoid unauthenticated access from AngularJS app
+    fmt.Println(">>> UnixHandler <<<")
+    fmt.Println("Request:", r.URL.Path)
+    for i, v := range r.Cookies() {
+        fmt.Printf("Cookies[%d]: %s\n", i, v)
+    }
+
+    if authui.AuthenticateUser(w, r) == false {
+        http.Redirect(w, r, "/login.html", http.StatusFound)
+        return
+    }
+
 	conn, err := net.Dial("unix", h.path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -128,54 +72,59 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-func createTcpHandler(e string) http.Handler {
-	u, err := url.Parse(e)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return httputil.NewSingleHostReverseProxy(u)
-}
+//Deleted by pastgift:
+// Only for local management
+//func createTcpHandler(e string) http.Handler {
+//	u, err := url.Parse(e)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	return httputil.NewSingleHostReverseProxy(u)
+//}
 
 func createUnixHandler(e string) http.Handler {
 	return &UnixHandler{e}
 }
 
+//Modified by pastgift
 func createHandler(dir string, e string) http.Handler {
 	var (
-		mux         = http.NewServeMux()
-		loginHandler = http.FileServer(http.Dir(dir))
-        doLoginHandler = new(DoLoginHandler)
-        aFileHandler = NewAuthenticatedFileServer(http.Dir(dir))
-		h           http.Handler
+		mux               = http.NewServeMux()
+		apiHandler          http.Handler
+		fileHandler       = http.FileServer(http.Dir(dir))
+        doLoginHandler    = authui.NewDoLoginHandler()
+        doPasswordHandler = authui.NewDoPasswordHandler()
+        authFileHandler   = authui.NewAuthenticatedFileServer(http.Dir(dir))
 	)
 
-	if strings.Contains(e, "http") {
-		h = createTcpHandler(e)
-	} else {
+//	if strings.Contains(e, "http") {
+//		apiHandler = createTcpHandler(e)
+//	} else {
 		if _, err := os.Stat(e); err != nil {
 			if os.IsNotExist(err) {
 				log.Fatalf("unix socket %s does not exist", e)
 			}
 			log.Fatal(err)
 		}
-		h = createUnixHandler(e)
-	}
+		apiHandler = createUnixHandler(e)
+//	}
 
-    mux.Handle("/login.html", loginHandler)
-    mux.Handle("/dologin", doLoginHandler)
-	mux.Handle("/dockerapi/", http.StripPrefix("/dockerapi", h))
-	mux.Handle("/", aFileHandler)
+    // `login.html` does not need authentication
+    mux.Handle("/login.html", fileHandler)
+
+    mux.Handle("/dopassword", doPasswordHandler)
+    mux.Handle("/dologin",    doLoginHandler)
+
+	mux.Handle("/dockerapi/", http.StripPrefix("/dockerapi", apiHandler))
+	mux.Handle("/",           authFileHandler)
 	return mux
-}
-
-func initUser() {
-    // TODO read user/password from shadow
-    token = ""
 }
 
 func main() {
 	flag.Parse()
-    initUser()
+
+    //Add by pastgift
+    authui.InitUser()
 
 	handler := createHandler(*assets, *endpoint)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
