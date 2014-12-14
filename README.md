@@ -1,3 +1,14 @@
+## DockerUI with Authentication
+DockerUI-with-Authentication is forked from DockerUI.
+
+As you know, origional DockerUI on the server which can access to Internet is dangerous. This version just added `login` and `password` pages to make DockerUI safer on the Internet. 
+
+By default, user name and password are both `admin`. You can change the user name or password by click `CHANGE PASSWORD` button in `SETTING` page.
+
+----------------------------
+
+*Following is Original README*
+
 ## DockerUI
 
 ![Containers](/containers.png)
