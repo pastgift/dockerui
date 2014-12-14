@@ -1,0 +1,16 @@
+.login-box {
+    padding: 0px 15px 0px 15px;
+    margin-top: 50px;
+    margin-left:auto;
+    margin-right:auto;
+    width: 350px;
+    border:#eeeeee solid 5px;
+    background-color: #eeeeee;
+    text-align:center;
+}
+
+.full-width {
+    display: inline-block;
+    width: 100%;
+    height: 40px !important;
+}

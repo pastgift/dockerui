@@ -41,7 +41,7 @@ func (h *DoPasswordHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     UIPassword = GetMD5(r.PostFormValue("ui_newpassword"))
 
     userInfo  := fmt.Sprintf("%s\n%s", UIUsername, UIPassword)
-    ioutil.WriteFile("shadow", []byte(userInfo), 0777)
+    ioutil.WriteFile("shadow", []byte(userInfo), 0644)
 
-    http.Redirect(w, r, "/", http.StatusFound)
+    http.Redirect(w, r, HOME_PAGE_PATH, http.StatusFound)
 }

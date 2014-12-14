@@ -13,6 +13,8 @@ import (
 
 const (
     COOKIE_MAX_AGE = 60 * 60
+    HOME_PAGE_PATH = "/index.html"
+    LOGIN_PAGE_PATH = "/login.html"
 )
 
 var (
@@ -94,7 +96,7 @@ func (h *DoLoginHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
     http.SetCookie(w, &cookie)
 
-    http.Redirect(w, r, "/", http.StatusFound)
+    http.Redirect(w, r, HOME_PAGE_PATH, http.StatusFound)
 }
 
 type AuthenticatedFileServer struct {
@@ -115,7 +117,13 @@ func (h *AuthenticatedFileServer) ServeHTTP(w http.ResponseWriter, r *http.Reque
         fmt.Printf("Cookies[%d]: %s\n", i, v)
     }
 
-    if strings.HasPrefix(r.URL.Path, "/css/") || AuthenticateUser(w, r) == true {
+    // Avoid show page directly
+    if r.URL.Path == "/" && AuthenticateUser(w, r) == false {
+        http.Redirect(w, r, LOGIN_PAGE_PATH, http.StatusFound)
+        return
+    }
+
+    if strings.HasPrefix(r.URL.Path, "/css/") || strings.HasPrefix(r.URL.Path, "/assets/css/") || AuthenticateUser(w, r) == true {
         h.BaseFileServerHandler.ServeHTTP(w, r)
     } else {
         http.Redirect(w, r, "/login.html", http.StatusFound)
