@@ -1,4 +1,8 @@
 logs/*
 !.gitkeep
-dockerui
 *.esproj/*
+node_modules
+.idea
+dist
+dockerui
+*.iml
